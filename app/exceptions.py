@@ -16,3 +16,11 @@ class InvalidCredentialsException(HTTPException):
             detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+class HotelNotFoundException(HTTPException):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Hotel not found",
+        )
