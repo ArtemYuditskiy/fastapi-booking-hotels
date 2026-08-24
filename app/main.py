@@ -4,16 +4,21 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 
+from app.catalog.router import router as catalog_router
 from app.database import engine
 from app.health.router import router as health_router
 from app.logger import logger
+from app.redis_client import redis_client
 from app.users.router import router as users_router
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    yield
-    await engine.dispose()
+    try:
+        yield
+    finally:
+        await redis_client.close()
+        await engine.dispose()
 
 
 app = FastAPI(
@@ -24,6 +29,7 @@ app = FastAPI(
 )
 
 app.include_router(users_router)
+app.include_router(catalog_router)
 app.include_router(health_router)
 
 

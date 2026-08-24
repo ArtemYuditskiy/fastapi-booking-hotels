@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,7 +19,10 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_CACHE_URL: str = "redis://localhost:6379/0"
+    CELERY_BROKER_URL: str = "redis://localhost:6379/1"
+    REDIS_SOCKET_TIMEOUT_SECONDS: float = Field(default=0.2, gt=0)
+    CATALOG_CACHE_TTL_SECONDS: int = Field(default=300, gt=0)
 
     @property
     def active_database_url(self) -> str:

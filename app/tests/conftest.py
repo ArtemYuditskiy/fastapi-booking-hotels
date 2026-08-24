@@ -11,10 +11,39 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from app.catalog.cache import CatalogCache
+from app.catalog.dependencies import get_catalog_cache
+from app.catalog.models import Hotel, RoomType
+from app.catalog.schemas import HotelRead, RoomTypeRead
 from app.config import settings
 from app.database import async_session_maker
 from app.main import app
 from app.users.models import User
+
+
+class EmptyCatalogCache:
+    async def get_hotel(self, hotel_id: int) -> HotelRead | None:
+        return None
+
+    async def set_hotel(self, hotel: HotelRead) -> None:
+        return None
+
+    async def get_room_types(self, hotel_id: int) -> list[RoomTypeRead] | None:
+        return None
+
+    async def set_room_types(
+        self,
+        hotel_id: int,
+        room_types: list[RoomTypeRead],
+    ) -> None:
+        return None
+
+    async def invalidate(self) -> None:
+        return None
+
+
+def get_empty_catalog_cache() -> CatalogCache:
+    return EmptyCatalogCache()
 
 
 async def reset_test_schema() -> None:
@@ -48,9 +77,26 @@ async def clean_users(migrated_database: None) -> AsyncIterator[None]:
 
 
 @pytest.fixture
+async def clean_catalog(migrated_database: None) -> AsyncIterator[None]:
+    async with async_session_maker() as session:
+        await session.execute(delete(RoomType))
+        await session.execute(delete(Hotel))
+        await session.commit()
+    yield
+    async with async_session_maker() as session:
+        await session.execute(delete(RoomType))
+        await session.execute(delete(Hotel))
+        await session.commit()
+
+
+@pytest.fixture
 async def client() -> AsyncIterator[AsyncClient]:
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as test_client:
-        yield test_client
+    app.dependency_overrides[get_catalog_cache] = get_empty_catalog_cache
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.pop(get_catalog_cache, None)
