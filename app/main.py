@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 
+from app.bookings.router import router as bookings_router
 from app.catalog.router import router as catalog_router
 from app.database import engine
 from app.health.router import router as health_router
@@ -30,6 +31,7 @@ app = FastAPI(
 
 app.include_router(users_router)
 app.include_router(catalog_router)
+app.include_router(bookings_router)
 app.include_router(health_router)
 
 

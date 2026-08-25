@@ -11,7 +11,7 @@ from pydantic import (
     model_validator,
 )
 
-MAX_STAY_NIGHTS = 30
+from app.bookings.policy import validate_stay_period
 
 
 def format_money(value: Decimal) -> str:
@@ -77,12 +77,7 @@ class HotelSearchParams(BaseModel):
 
     @model_validator(mode="after")
     def validate_search_range(self) -> "HotelSearchParams":
-        if self.date_from < date.today():
-            raise ValueError("date_from must be today or later")
-        if self.date_to <= self.date_from:
-            raise ValueError("date_to must be later than date_from")
-        if (self.date_to - self.date_from).days > MAX_STAY_NIGHTS:
-            raise ValueError(f"A stay cannot exceed {MAX_STAY_NIGHTS} nights")
+        validate_stay_period(self.date_from, self.date_to)
         if (
             self.min_price is not None
             and self.max_price is not None

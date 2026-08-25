@@ -17,17 +17,22 @@ class UserService:
 
     async def register(self, *, email: str, password: str) -> User:
         try:
-            async with self._session.begin():
-                existing_user = await self._repository.get_by_email(email)
-                if existing_user is not None:
-                    raise UserAlreadyExistsError
+            existing_user = await self._repository.get_by_email(email)
+            if existing_user is not None:
+                raise UserAlreadyExistsError
 
-                return await self._repository.add(
-                    email=email,
-                    hashed_password=hash_password(password),
-                )
+            user = await self._repository.add(
+                email=email,
+                hashed_password=hash_password(password),
+            )
+            await self._session.commit()
+            return user
         except IntegrityError as error:
+            await self._session.rollback()
             raise UserAlreadyExistsError from error
+        except Exception:
+            await self._session.rollback()
+            raise
 
     async def authenticate(self, *, email: str, password: str) -> User | None:
         user = await self._repository.get_by_email(email)

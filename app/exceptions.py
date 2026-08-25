@@ -24,3 +24,19 @@ class HotelNotFoundException(HTTPException):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Hotel not found",
         )
+
+
+class RoomTypeNotFoundException(HTTPException):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Room type not found",
+        )
+
+
+class NoAvailabilityException(HTTPException):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No rooms are available for the selected dates",
+        )
