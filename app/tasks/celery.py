@@ -5,7 +5,7 @@ from app.config import settings
 celery = Celery(
     "hotel_booking",
     broker=settings.CELERY_BROKER_URL,
-    include=["app.bookings.tasks"],
+    include=["app.bookings.tasks", "app.notifications.tasks"],
 )
 
 celery.conf.update(
@@ -14,6 +14,10 @@ celery.conf.update(
         "expire-booking-holds": {
             "task": "bookings.expire_holds",
             "schedule": float(settings.CELERY_BEAT_INTERVAL_SECONDS),
+        },
+        "dispatch-pending-notifications": {
+            "task": "notifications.dispatch_pending",
+            "schedule": float(settings.NOTIFICATION_DISPATCH_INTERVAL_SECONDS),
         },
     },
     broker_connection_retry_on_startup=True,
