@@ -11,6 +11,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from app.bookings.models import Booking
 from app.catalog.cache import CatalogCache
 from app.catalog.dependencies import get_catalog_cache
 from app.catalog.models import Hotel, RoomType
@@ -68,10 +69,12 @@ def migrated_database() -> Iterator[None]:
 @pytest.fixture
 async def clean_users(migrated_database: None) -> AsyncIterator[None]:
     async with async_session_maker() as session:
+        await session.execute(delete(Booking))
         await session.execute(delete(User))
         await session.commit()
     yield
     async with async_session_maker() as session:
+        await session.execute(delete(Booking))
         await session.execute(delete(User))
         await session.commit()
 
@@ -79,13 +82,32 @@ async def clean_users(migrated_database: None) -> AsyncIterator[None]:
 @pytest.fixture
 async def clean_catalog(migrated_database: None) -> AsyncIterator[None]:
     async with async_session_maker() as session:
+        await session.execute(delete(Booking))
         await session.execute(delete(RoomType))
         await session.execute(delete(Hotel))
         await session.commit()
     yield
     async with async_session_maker() as session:
+        await session.execute(delete(Booking))
         await session.execute(delete(RoomType))
         await session.execute(delete(Hotel))
+        await session.commit()
+
+
+@pytest.fixture
+async def clean_search(migrated_database: None) -> AsyncIterator[None]:
+    async with async_session_maker() as session:
+        await session.execute(delete(Booking))
+        await session.execute(delete(RoomType))
+        await session.execute(delete(Hotel))
+        await session.execute(delete(User))
+        await session.commit()
+    yield
+    async with async_session_maker() as session:
+        await session.execute(delete(Booking))
+        await session.execute(delete(RoomType))
+        await session.execute(delete(Hotel))
+        await session.execute(delete(User))
         await session.commit()
 
 
