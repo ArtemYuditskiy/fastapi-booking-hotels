@@ -18,11 +18,9 @@ The API foundation currently provides:
 - availability search at `GET /api/v1/hotels`;
 - hotel details at `GET /api/v1/hotels/{hotel_id}`;
 - room types at `GET /api/v1/hotels/{hotel_id}/rooms`;
+- authenticated reservation creation, confirmation, listing, and cancellation;
 - an asynchronous SQLAlchemy session and an Alembic-managed PostgreSQL schema;
 - Redis cache-aside support for catalog reference data.
-
-The booking persistence model exists so search results can account for active
-reservations. Booking creation and lifecycle endpoints are not available yet.
 
 ## Catalog seed
 
@@ -58,3 +56,37 @@ cost for the requested stay.
 Confirmed bookings and unexpired reservation holds occupy inventory. Cancelled,
 expired, and time-expired holds do not affect availability. Search results are
 calculated directly in PostgreSQL and are not cached.
+
+## Booking lifecycle
+
+Booking endpoints require an OAuth2 Bearer token:
+
+```text
+GET    /api/v1/bookings
+GET    /api/v1/bookings/{booking_id}
+POST   /api/v1/bookings
+POST   /api/v1/bookings/{booking_id}/confirm
+DELETE /api/v1/bookings/{booking_id}
+```
+
+Creating a booking places a 15-minute `created` hold. Confirming it changes the
+status to `confirmed`; deleting it performs a soft transition to `cancelled`.
+An unconfirmed hold becomes effectively `expired` as soon as its deadline
+passes, even if no background worker has run yet.
+
+```text
+created ──> confirmed ──> cancelled
+   │
+   └──────> expired
+```
+
+The API calculates and stores a price snapshot in USD using `Decimal`, so later
+catalog price changes do not alter an existing booking. Confirmation and
+cancellation are idempotent when the booking is already in the requested final
+state. A booking owned by another user is returned as `404`, avoiding disclosure
+of its existence.
+
+Reservation creation locks the selected room type in PostgreSQL while it counts
+overlapping active bookings and inserts the new hold in one transaction. This
+serializes concurrent requests for the same inventory and prevents successful
+bookings from exceeding `RoomType.quantity`.
