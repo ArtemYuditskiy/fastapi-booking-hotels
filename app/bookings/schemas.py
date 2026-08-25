@@ -1,10 +1,10 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
 
-from app.bookings.models import BookingStatus
+from app.bookings.models import Booking, BookingStatus
 from app.bookings.policy import validate_stay_period
 
 
@@ -40,5 +40,18 @@ class BookingRead(BaseModel):
     @field_serializer("price_per_night", "total_cost")
     def serialize_money(self, value: Decimal) -> str:
         return format_money(value)
+
+    @classmethod
+    def from_booking(
+        cls,
+        booking: Booking,
+        *,
+        now: datetime | None = None,
+    ) -> "BookingRead":
+        result = cls.model_validate(booking)
+        current_time = now or datetime.now(UTC)
+        if result.status == BookingStatus.CREATED and result.expires_at <= current_time:
+            result.status = BookingStatus.EXPIRED
+        return result
 
     model_config = ConfigDict(from_attributes=True)

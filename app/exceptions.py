@@ -40,3 +40,27 @@ class NoAvailabilityException(HTTPException):
             status_code=status.HTTP_409_CONFLICT,
             detail="No rooms are available for the selected dates",
         )
+
+
+class BookingNotFoundException(HTTPException):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking not found",
+        )
+
+
+class BookingHoldExpiredException(HTTPException):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Booking hold has expired",
+        )
+
+
+class BookingStateConflictException(HTTPException):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Booking cannot be confirmed in its current state",
+        )

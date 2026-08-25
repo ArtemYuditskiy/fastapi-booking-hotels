@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.bookings.models import Booking
+from app.bookings.models import Booking, BookingStatus
 from app.bookings.policy import BOOKING_HOLD_DURATION
 from app.bookings.repository import BookingRepository
 from app.bookings.schemas import BookingCreate
@@ -14,6 +14,18 @@ class RoomTypeNotFoundError(ValueError):
 
 
 class NoAvailabilityError(ValueError):
+    pass
+
+
+class BookingNotFoundError(ValueError):
+    pass
+
+
+class BookingHoldExpiredError(ValueError):
+    pass
+
+
+class BookingStateConflictError(ValueError):
     pass
 
 
@@ -67,3 +79,117 @@ class BookingService:
             },
         )
         return booking
+
+    async def list(self, *, user_id: int, limit: int, offset: int) -> list[Booking]:
+        return await self._repository.list_owned(
+            user_id=user_id,
+            limit=limit,
+            offset=offset,
+        )
+
+    async def get(self, *, booking_id: int, user_id: int) -> Booking:
+        booking = await self._repository.get_owned(
+            booking_id=booking_id,
+            user_id=user_id,
+        )
+        if booking is None:
+            raise BookingNotFoundError
+        return booking
+
+    async def confirm(self, *, booking_id: int, user_id: int) -> Booking:
+        now = datetime.now(UTC)
+        transitioned_to_confirmed = False
+        hold_expired = False
+
+        try:
+            booking = await self._repository.get_owned_for_update(
+                booking_id=booking_id,
+                user_id=user_id,
+            )
+            if booking is None:
+                raise BookingNotFoundError
+
+            if booking.status == BookingStatus.CREATED and booking.expires_at <= now:
+                booking.status = BookingStatus.EXPIRED
+                hold_expired = True
+            elif booking.status == BookingStatus.CREATED:
+                booking.status = BookingStatus.CONFIRMED
+                transitioned_to_confirmed = True
+            elif booking.status == BookingStatus.EXPIRED:
+                hold_expired = True
+            elif booking.status != BookingStatus.CONFIRMED:
+                raise BookingStateConflictError
+
+            await self._session.commit()
+            await self._session.refresh(booking)
+        except Exception:
+            await self._session.rollback()
+            raise
+
+        if hold_expired:
+            self._log_expired(booking)
+            raise BookingHoldExpiredError
+
+        if transitioned_to_confirmed:
+            logger.info(
+                "booking_confirmed",
+                extra={
+                    "booking_id": booking.id,
+                    "user_id": booking.user_id,
+                    "room_type_id": booking.room_type_id,
+                },
+            )
+        return booking
+
+    async def cancel(self, *, booking_id: int, user_id: int) -> Booking:
+        now = datetime.now(UTC)
+        transitioned_to_cancelled = False
+        transitioned_to_expired = False
+
+        try:
+            booking = await self._repository.get_owned_for_update(
+                booking_id=booking_id,
+                user_id=user_id,
+            )
+            if booking is None:
+                raise BookingNotFoundError
+
+            if booking.status == BookingStatus.CREATED and booking.expires_at <= now:
+                booking.status = BookingStatus.EXPIRED
+                transitioned_to_expired = True
+            elif booking.status in {
+                BookingStatus.CREATED,
+                BookingStatus.CONFIRMED,
+            }:
+                booking.status = BookingStatus.CANCELLED
+                transitioned_to_cancelled = True
+
+            await self._session.commit()
+            await self._session.refresh(booking)
+        except Exception:
+            await self._session.rollback()
+            raise
+
+        if transitioned_to_expired:
+            self._log_expired(booking)
+        elif transitioned_to_cancelled:
+            logger.info(
+                "booking_cancelled",
+                extra={
+                    "booking_id": booking.id,
+                    "user_id": booking.user_id,
+                    "room_type_id": booking.room_type_id,
+                },
+            )
+        return booking
+
+    @staticmethod
+    def _log_expired(booking: Booking) -> None:
+        logger.info(
+            "booking_expired",
+            extra={
+                "booking_id": booking.id,
+                "user_id": booking.user_id,
+                "room_type_id": booking.room_type_id,
+            },
+        )

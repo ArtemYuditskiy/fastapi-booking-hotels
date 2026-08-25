@@ -18,6 +18,45 @@ class BookingRepository:
         )
         return await self._session.scalar(statement)
 
+    async def list_owned(
+        self,
+        *,
+        user_id: int,
+        limit: int,
+        offset: int,
+    ) -> list[Booking]:
+        statement = (
+            select(Booking)
+            .where(Booking.user_id == user_id)
+            .order_by(Booking.created_at.desc(), Booking.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(await self._session.scalars(statement))
+
+    async def get_owned(self, *, booking_id: int, user_id: int) -> Booking | None:
+        statement = select(Booking).where(
+            Booking.id == booking_id,
+            Booking.user_id == user_id,
+        )
+        return await self._session.scalar(statement)
+
+    async def get_owned_for_update(
+        self,
+        *,
+        booking_id: int,
+        user_id: int,
+    ) -> Booking | None:
+        statement = (
+            select(Booking)
+            .where(
+                Booking.id == booking_id,
+                Booking.user_id == user_id,
+            )
+            .with_for_update()
+        )
+        return await self._session.scalar(statement)
+
     async def count_active_overlapping(
         self,
         *,
