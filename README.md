@@ -19,6 +19,7 @@ The API foundation currently provides:
 - hotel details at `GET /api/v1/hotels/{hotel_id}`;
 - room types at `GET /api/v1/hotels/{hotel_id}/rooms`;
 - authenticated reservation creation, confirmation, listing, and cancellation;
+- Celery workflows for hold expiration and confirmation emails;
 - an asynchronous SQLAlchemy session and an Alembic-managed PostgreSQL schema;
 - Redis cache-aside support for catalog reference data.
 
@@ -90,3 +91,42 @@ Reservation creation locks the selected room type in PostgreSQL while it counts
 overlapping active bookings and inserts the new hold in one transaction. This
 serializes concurrent requests for the same inventory and prevents successful
 bookings from exceeding `RoomType.quantity`.
+
+## Background workflows
+
+Start a worker and Beat in separate terminals after PostgreSQL and Redis are
+available:
+
+```bash
+uv run celery -A app.tasks.celery:celery worker --loglevel=INFO
+uv run celery -A app.tasks.celery:celery beat --loglevel=INFO
+```
+
+Beat periodically runs two workflows:
+
+- `bookings.expire_holds` persists due `created` holds as `expired` with one
+  idempotent PostgreSQL update;
+- `notifications.dispatch_pending` publishes due notification IDs for delivery.
+
+Availability does not depend on Beat running on time. Search and reservation
+creation ignore a `created` hold as soon as its `expires_at` deadline passes,
+even before the background update persists the `expired` status.
+
+Confirming a booking writes both the `confirmed` status and one notification
+outbox row in the same transaction. Redis or SMTP downtime therefore cannot
+roll back the booking. The dispatcher can publish the same ID more than once;
+the worker uses a PostgreSQL delivery lease to prevent parallel sends and to
+recover work abandoned by a crashed process.
+
+Temporary delivery failures use exponential backoff and become `failed` after
+`NOTIFICATION_MAX_ATTEMPTS`. Permanent SMTP rejection fails immediately. Logs
+contain notification and booking IDs, but never the full recipient address.
+
+Local SMTP defaults to Mailpit at `localhost:1025`; its web interface normally
+runs at `http://localhost:8025`. SMTP authentication and a production mail
+provider are intentionally outside the current project scope.
+
+Email delivery is at-least-once. A worker crash after SMTP accepts a message but
+before PostgreSQL records `sent` can produce a duplicate. Exactly-once delivery
+would require an email provider with an idempotency key, which plain SMTP does
+not provide.
