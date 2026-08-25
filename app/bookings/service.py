@@ -35,7 +35,6 @@ class BookingService:
         self._repository = BookingRepository(session)
 
     async def create(self, *, user_id: int, data: BookingCreate) -> Booking:
-        now = datetime.now(UTC)
         nights = (data.date_to - data.date_from).days
 
         try:
@@ -45,6 +44,7 @@ class BookingService:
             if room_type is None:
                 raise RoomTypeNotFoundError
 
+            now = datetime.now(UTC)
             occupied = await self._repository.count_active_overlapping(
                 room_type_id=room_type.id,
                 date_from=data.date_from,
@@ -97,7 +97,6 @@ class BookingService:
         return booking
 
     async def confirm(self, *, booking_id: int, user_id: int) -> Booking:
-        now = datetime.now(UTC)
         transitioned_to_confirmed = False
         hold_expired = False
 
@@ -109,6 +108,7 @@ class BookingService:
             if booking is None:
                 raise BookingNotFoundError
 
+            now = datetime.now(UTC)
             if booking.status == BookingStatus.CREATED and booking.expires_at <= now:
                 booking.status = BookingStatus.EXPIRED
                 hold_expired = True
@@ -120,8 +120,9 @@ class BookingService:
             elif booking.status != BookingStatus.CONFIRMED:
                 raise BookingStateConflictError
 
-            await self._session.commit()
+            await self._session.flush()
             await self._session.refresh(booking)
+            await self._session.commit()
         except Exception:
             await self._session.rollback()
             raise
@@ -142,7 +143,6 @@ class BookingService:
         return booking
 
     async def cancel(self, *, booking_id: int, user_id: int) -> Booking:
-        now = datetime.now(UTC)
         transitioned_to_cancelled = False
         transitioned_to_expired = False
 
@@ -154,6 +154,7 @@ class BookingService:
             if booking is None:
                 raise BookingNotFoundError
 
+            now = datetime.now(UTC)
             if booking.status == BookingStatus.CREATED and booking.expires_at <= now:
                 booking.status = BookingStatus.EXPIRED
                 transitioned_to_expired = True
@@ -164,8 +165,9 @@ class BookingService:
                 booking.status = BookingStatus.CANCELLED
                 transitioned_to_cancelled = True
 
-            await self._session.commit()
+            await self._session.flush()
             await self._session.refresh(booking)
+            await self._session.commit()
         except Exception:
             await self._session.rollback()
             raise
