@@ -23,6 +23,15 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
     CELERY_BEAT_INTERVAL_SECONDS: int = Field(default=60, gt=0)
     CELERY_TASK_ALWAYS_EAGER: bool = False
+    NOTIFICATION_DISPATCH_INTERVAL_SECONDS: int = Field(default=10, gt=0)
+    NOTIFICATION_BATCH_SIZE: int = Field(default=100, gt=0, le=1000)
+    NOTIFICATION_MAX_ATTEMPTS: int = Field(default=5, gt=0)
+    NOTIFICATION_RETRY_BASE_SECONDS: int = Field(default=30, gt=0)
+    NOTIFICATION_CLAIM_TIMEOUT_SECONDS: int = Field(default=300, gt=0)
+    SMTP_HOST: str = "localhost"
+    SMTP_PORT: int = Field(default=1025, ge=1, le=65535)
+    SMTP_FROM_EMAIL: str = "bookings@example.test"
+    SMTP_TIMEOUT_SECONDS: float = Field(default=10.0, gt=0)
     REDIS_SOCKET_TIMEOUT_SECONDS: float = Field(default=0.2, gt=0)
     CATALOG_CACHE_TTL_SECONDS: int = Field(default=300, gt=0)
 
