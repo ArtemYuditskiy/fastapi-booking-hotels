@@ -7,6 +7,8 @@ from app.bookings.policy import BOOKING_HOLD_DURATION
 from app.bookings.repository import BookingRepository
 from app.bookings.schemas import BookingCreate
 from app.logger import logger
+from app.notifications.outbox import NotificationOutboxService
+from app.users.repository import UserRepository
 
 
 class RoomTypeNotFoundError(ValueError):
@@ -33,6 +35,8 @@ class BookingService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._repository = BookingRepository(session)
+        self._notification_outbox = NotificationOutboxService(session)
+        self._user_repository = UserRepository(session)
 
     async def create(self, *, user_id: int, data: BookingCreate) -> Booking:
         nights = (data.date_to - data.date_from).days
@@ -99,6 +103,8 @@ class BookingService:
     async def confirm(self, *, booking_id: int, user_id: int) -> Booking:
         transitioned_to_confirmed = False
         hold_expired = False
+        notification_id: int | None = None
+        notification_created = False
 
         try:
             booking = await self._repository.get_owned_for_update(
@@ -120,6 +126,19 @@ class BookingService:
             elif booking.status != BookingStatus.CONFIRMED:
                 raise BookingStateConflictError
 
+            if booking.status == BookingStatus.CONFIRMED:
+                user = await self._user_repository.get_by_id(user_id)
+                if user is None:
+                    raise BookingNotFoundError
+                (
+                    notification,
+                    notification_created,
+                ) = await self._notification_outbox.ensure_booking_confirmation(
+                    booking=booking,
+                    recipient_email=user.email,
+                )
+                notification_id = notification.id
+
             await self._session.flush()
             await self._session.refresh(booking)
             await self._session.commit()
@@ -138,6 +157,15 @@ class BookingService:
                     "booking_id": booking.id,
                     "user_id": booking.user_id,
                     "room_type_id": booking.room_type_id,
+                },
+            )
+        if notification_created:
+            logger.info(
+                "notification_queued",
+                extra={
+                    "notification_id": notification_id,
+                    "booking_id": booking.id,
+                    "notification_kind": "booking_confirmation",
                 },
             )
         return booking

@@ -10,6 +10,7 @@ from app.config import settings
 from app.bookings.models import Booking  # noqa: F401
 from app.catalog.models import Hotel, RoomType  # noqa: F401
 from app.database import Base
+from app.notifications.models import Notification  # noqa: F401
 from app.users.models import User  # noqa: F401
 
 config = context.config
