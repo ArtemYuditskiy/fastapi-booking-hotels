@@ -19,6 +19,7 @@ from app.catalog.schemas import HotelRead, RoomTypeRead
 from app.config import settings
 from app.database import async_session_maker
 from app.main import app
+from app.notifications.models import Notification
 from app.users.models import User
 
 
@@ -69,11 +70,13 @@ def migrated_database() -> Iterator[None]:
 @pytest.fixture
 async def clean_users(migrated_database: None) -> AsyncIterator[None]:
     async with async_session_maker() as session:
+        await session.execute(delete(Notification))
         await session.execute(delete(Booking))
         await session.execute(delete(User))
         await session.commit()
     yield
     async with async_session_maker() as session:
+        await session.execute(delete(Notification))
         await session.execute(delete(Booking))
         await session.execute(delete(User))
         await session.commit()
@@ -82,12 +85,14 @@ async def clean_users(migrated_database: None) -> AsyncIterator[None]:
 @pytest.fixture
 async def clean_catalog(migrated_database: None) -> AsyncIterator[None]:
     async with async_session_maker() as session:
+        await session.execute(delete(Notification))
         await session.execute(delete(Booking))
         await session.execute(delete(RoomType))
         await session.execute(delete(Hotel))
         await session.commit()
     yield
     async with async_session_maker() as session:
+        await session.execute(delete(Notification))
         await session.execute(delete(Booking))
         await session.execute(delete(RoomType))
         await session.execute(delete(Hotel))
@@ -97,6 +102,7 @@ async def clean_catalog(migrated_database: None) -> AsyncIterator[None]:
 @pytest.fixture
 async def clean_search(migrated_database: None) -> AsyncIterator[None]:
     async with async_session_maker() as session:
+        await session.execute(delete(Notification))
         await session.execute(delete(Booking))
         await session.execute(delete(RoomType))
         await session.execute(delete(Hotel))
@@ -104,6 +110,7 @@ async def clean_search(migrated_database: None) -> AsyncIterator[None]:
         await session.commit()
     yield
     async with async_session_maker() as session:
+        await session.execute(delete(Notification))
         await session.execute(delete(Booking))
         await session.execute(delete(RoomType))
         await session.execute(delete(Hotel))
