@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bookings.models import Booking, BookingStatus
@@ -105,3 +105,18 @@ class BookingRepository:
         await self._session.flush()
         await self._session.refresh(booking)
         return booking
+
+    async def expire_due_holds(self, *, now: datetime) -> list[int]:
+        statement = (
+            update(Booking)
+            .where(
+                Booking.status == BookingStatus.CREATED,
+                Booking.expires_at <= now,
+            )
+            .values(
+                status=BookingStatus.EXPIRED,
+                updated_at=now,
+            )
+            .returning(Booking.id)
+        )
+        return list(await self._session.scalars(statement))

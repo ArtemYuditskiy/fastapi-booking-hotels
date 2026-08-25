@@ -21,6 +21,8 @@ class Settings(BaseSettings):
 
     REDIS_CACHE_URL: str = "redis://localhost:6379/0"
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
+    CELERY_BEAT_INTERVAL_SECONDS: int = Field(default=60, gt=0)
+    CELERY_TASK_ALWAYS_EAGER: bool = False
     REDIS_SOCKET_TIMEOUT_SECONDS: float = Field(default=0.2, gt=0)
     CATALOG_CACHE_TTL_SECONDS: int = Field(default=300, gt=0)
 
