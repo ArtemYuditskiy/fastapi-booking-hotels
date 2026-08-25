@@ -7,6 +7,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.config import settings
+from app.bookings.models import Booking  # noqa: F401
 from app.catalog.models import Hotel, RoomType  # noqa: F401
 from app.database import Base
 from app.users.models import User  # noqa: F401
