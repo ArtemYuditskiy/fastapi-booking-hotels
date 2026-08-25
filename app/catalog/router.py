@@ -1,12 +1,27 @@
-from fastapi import APIRouter
+from typing import Annotated
+
+from fastapi import APIRouter, Query
 
 from app.catalog.dependencies import CatalogCacheDependency
-from app.catalog.schemas import HotelRead, RoomTypeRead
-from app.catalog.service import CatalogService
+from app.catalog.schemas import (
+    HotelRead,
+    HotelSearchParams,
+    HotelSearchResult,
+    RoomTypeRead,
+)
+from app.catalog.service import CatalogService, HotelSearchService
 from app.exceptions import HotelNotFoundException
 from app.users.dependencies import SessionDependency
 
 router = APIRouter(prefix="/api/v1/hotels", tags=["Catalog"])
+
+
+@router.get("", response_model=list[HotelSearchResult], summary="Search hotels")
+async def search_hotels(
+    params: Annotated[HotelSearchParams, Query()],
+    session: SessionDependency,
+) -> list[HotelSearchResult]:
+    return await HotelSearchService(session).search(params)
 
 
 @router.get("/{hotel_id}", response_model=HotelRead, summary="Get a hotel")
