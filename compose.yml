@@ -1,0 +1,127 @@
+x-app-service: &app-service
+  build:
+    context: .
+  image: fastapi-hotel-booking:local
+  environment: &app-environment
+    MODE: DEV
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/hotel_booking
+    TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/hotel_booking_test
+    JWT_SECRET: ${JWT_SECRET:-local-compose-secret-change-before-production}
+    JWT_ALGORITHM: HS256
+    ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+    REDIS_CACHE_URL: redis://redis:6379/0
+    CELERY_BROKER_URL: redis://redis:6379/1
+    CELERY_BEAT_INTERVAL_SECONDS: ${CELERY_BEAT_INTERVAL_SECONDS:-60}
+    CELERY_TASK_ALWAYS_EAGER: "false"
+    NOTIFICATION_DISPATCH_INTERVAL_SECONDS: ${NOTIFICATION_DISPATCH_INTERVAL_SECONDS:-10}
+    NOTIFICATION_BATCH_SIZE: ${NOTIFICATION_BATCH_SIZE:-100}
+    NOTIFICATION_MAX_ATTEMPTS: ${NOTIFICATION_MAX_ATTEMPTS:-5}
+    NOTIFICATION_RETRY_BASE_SECONDS: ${NOTIFICATION_RETRY_BASE_SECONDS:-30}
+    NOTIFICATION_CLAIM_TIMEOUT_SECONDS: ${NOTIFICATION_CLAIM_TIMEOUT_SECONDS:-300}
+    SMTP_HOST: mailpit
+    SMTP_PORT: 1025
+    SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-bookings@example.test}
+    SMTP_TIMEOUT_SECONDS: ${SMTP_TIMEOUT_SECONDS:-10.0}
+    REDIS_SOCKET_TIMEOUT_SECONDS: ${REDIS_SOCKET_TIMEOUT_SECONDS:-0.2}
+    CATALOG_CACHE_TTL_SECONDS: ${CATALOG_CACHE_TTL_SECONDS:-300}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: hotel_booking
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-test-database.sql:/docker-entrypoint-initdb.d/init-test-database.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hotel_booking"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    environment:
+      MP_MAX_MESSAGES: 500
+    ports:
+      - "${SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+    restart: unless-stopped
+
+  setup:
+    <<: *app-service
+    command:
+      - sh
+      - -c
+      - alembic upgrade head && python -m app.catalog.seed
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *app-service
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://localhost:8000/health', timeout=2)
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    init: true
+    restart: unless-stopped
+
+  worker:
+    <<: *app-service
+    command: celery -A app.tasks.celery:celery worker --loglevel=INFO --concurrency=2
+    depends_on:
+      mailpit:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      setup:
+        condition: service_completed_successfully
+    init: true
+    restart: unless-stopped
+
+  beat:
+    <<: *app-service
+    command: celery -A app.tasks.celery:celery beat --loglevel=INFO
+    depends_on:
+      redis:
+        condition: service_healthy
+      setup:
+        condition: service_completed_successfully
+    init: true
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
