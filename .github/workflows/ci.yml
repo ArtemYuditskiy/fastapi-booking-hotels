@@ -23,6 +23,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      - name: Validate Docker Compose configuration
+        run: docker compose config --quiet
+
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
