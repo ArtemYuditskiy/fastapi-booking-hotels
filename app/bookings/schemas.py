@@ -1,15 +1,12 @@
 from datetime import UTC, date, datetime
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
 
 from app.bookings.models import Booking, BookingStatus
 from app.bookings.policy import validate_stay_period
-
-
-def format_money(value: Decimal) -> str:
-    return str(value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+from app.money import format_money
 
 
 class BookingCreate(BaseModel):

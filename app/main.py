@@ -41,7 +41,7 @@ app.include_router(health_router)
 
 
 @app.middleware("http")
-async def log_request_duration(
+async def log_http_request(
     request: Request,
     call_next: RequestResponseEndpoint,
 ) -> Response:

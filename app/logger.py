@@ -27,7 +27,7 @@ class RequestContextFilter(logging.Filter):
         return True
 
 
-class CustomJsonFormatter(JsonFormatter):
+class ApplicationJsonFormatter(JsonFormatter):
     def add_fields(
         self,
         log_record: dict[str, Any],
@@ -51,7 +51,7 @@ if not logger.handlers:
     handler = logging.StreamHandler()
     handler.addFilter(RequestContextFilter())
     handler.setFormatter(
-        CustomJsonFormatter(
+        ApplicationJsonFormatter(
             "%(timestamp)s %(level)s %(message)s %(request_id)s %(module)s %(funcName)s"
         )
     )

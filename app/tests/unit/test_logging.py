@@ -5,7 +5,7 @@ from uuid import UUID
 
 from httpx import AsyncClient
 
-from app.logger import CustomJsonFormatter, RequestContextFilter, logger
+from app.logger import ApplicationJsonFormatter, RequestContextFilter, logger
 
 
 def capture_json_logs() -> tuple[io.StringIO, logging.Handler]:
@@ -13,7 +13,7 @@ def capture_json_logs() -> tuple[io.StringIO, logging.Handler]:
     handler = logging.StreamHandler(stream)
     handler.addFilter(RequestContextFilter())
     handler.setFormatter(
-        CustomJsonFormatter(
+        ApplicationJsonFormatter(
             "%(timestamp)s %(level)s %(message)s %(request_id)s %(module)s %(funcName)s"
         )
     )

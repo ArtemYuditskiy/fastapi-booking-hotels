@@ -1,5 +1,5 @@
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import (
@@ -12,10 +12,7 @@ from pydantic import (
 )
 
 from app.bookings.policy import validate_stay_period
-
-
-def format_money(value: Decimal) -> str:
-    return str(value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+from app.money import format_money
 
 
 class HotelRead(BaseModel):
