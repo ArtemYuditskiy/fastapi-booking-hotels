@@ -3,6 +3,8 @@ from typing import Literal
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+DEVELOPMENT_JWT_SECRET = "development-only-secret-change-me-now"
+
 
 class Settings(BaseSettings):
     MODE: Literal["DEV", "TEST", "PROD"] = "DEV"
@@ -15,7 +17,10 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://postgres:postgres@localhost:5432/hotel_booking_test"
     )
 
-    JWT_SECRET: str = "development-only-secret-change-me-now"
+    JWT_SECRET: str = Field(
+        default=DEVELOPMENT_JWT_SECRET,
+        min_length=32,
+    )
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
@@ -43,10 +48,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_secret(self) -> "Settings":
-        if (
-            self.MODE == "PROD"
-            and self.JWT_SECRET == "development-only-secret-change-me-now"
-        ):
+        if self.MODE == "PROD" and self.JWT_SECRET == DEVELOPMENT_JWT_SECRET:
             raise ValueError("JWT_SECRET must be changed in production")
         return self
 
